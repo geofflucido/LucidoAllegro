@@ -1,0 +1,68 @@
+parameters:
+- name: baseBranch
+  type: string
+- name: packageType
+  type: string
+- name: diffMode
+  type: string
+- name: baseDeputyDirectory
+  type: string
+- name: deputyUrl
+  type: string
+- name: shouldPublish
+  type: string
+
+steps:
+- checkout: self
+  fetchDepth: 0
+
+- task: PowerShell@2
+  displayName: 'Set Publish Condition Variable'
+  inputs:
+    targetType: 'inline'
+    script: |
+      $shouldPublish = "${{ parameters.shouldPublish }}"
+
+      Write-Host "Should Publish: $shouldPublish"
+      echo "##vso[task.setvariable variable=ShouldPublish]$shouldPublish"
+
+- task: PowerShell@2
+  displayName: 'Copy changes to Deputy input directory'
+  inputs:
+    targetType: 'filePath'
+    filePath: 'DevOps\Scripts\PowerShell\stage-branch-changes.ps1'
+    arguments: >
+      -deputyStagingDirectory "$(DeputyStagingDirectory)"
+      -branch "$(SourceBranchShort)" 
+      -baseBranch ${{ parameters.baseBranch }}
+      -packageType ${{ parameters.packageType }}
+      -diffMode ${{ parameters.diffMode }}
+
+- task: PythonScript@0
+  displayName: 'API Request to create deployment'
+  inputs:
+    scriptSource: 'filePath'
+    scriptPath: 'DevOps\Scripts\Python\create-deputy-release.py'
+    arguments: >
+      ${{ parameters.deputyUrl }}
+      "$(DeputyReleaseDirectory)"
+      "$(DeputyStagingDirectory)"
+      $(SanitizedBranchName)
+      "Data Model\Data Tables"
+      "Data Model\Data Constraints"
+      "Data Model\Data Columns"
+      "Data Model\Data Views"
+      "Data Model\Indexes"
+      "Visual Model\Classes"
+      "Visual Model\Views"
+      "Visual Model\Class Events"
+      "Visual Model\Templates"
+      "Message Events"
+
+- task: PublishPipelineArtifact@1
+  displayName: 'Publish Deputy Package'
+  condition: eq(variables['ShouldPublish'], 'true')
+  inputs:
+    targetpath: '$(DeputyReleaseDirectory)'
+    artifact: '$(SanitizedBranchName)'
+    publishLocation: 'pipeline'

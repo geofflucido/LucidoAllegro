@@ -1,0 +1,39 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'windows-latest'
+  name: Local Agent Pool  
+
+jobs:
+- job: CreateDeployment
+  displayName: 'Create Deployment'
+  steps:
+  - template: 'DevOps\Templates\prepare-variables-template.yml'
+    parameters:
+      sourceBranch: $(Build.SourceBranch)
+      baseDeputyDirectory: $(DeputyDirectory)
+
+  - task: PowerShell@2
+    displayName: 'Clean up Deputy Files Directory'
+    inputs:
+      targetType: 'filePath'
+      filePath: 'DevOps\Scripts\PowerShell\clean-up-directory.ps1'
+      arguments: '-directoryPath "$(DeputyBranchDirectory)"'
+
+  - template: 'DevOps\Templates\create-deputy-package-template.yml'
+    parameters:
+      baseBranch: "main"
+      packageType: "Incremental"
+      diffMode: "Incremental"
+      baseDeputyDirectory: $(DeputyDirectory)
+      deputyUrl: $(DeputyUrl)
+      shouldPublish: 'true'
+
+  - task: PowerShell@2
+    displayName: 'Clean up Deputy Files Directory'
+    condition: always()
+    inputs:
+      targetType: 'filePath'
+      filePath: 'DevOps\Scripts\PowerShell\clean-up-directory.ps1'
+      arguments: '-directoryPath "$(DeputyBranchDirectory)"'          

@@ -1,0 +1,42 @@
+parameters:
+- name: "targetEnvironmentUrl"
+  displayName: "Target Url"
+  type: string
+
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'windows-latest'
+  name: Local Agent Pool  
+
+jobs:
+- job: DeployRelease
+  displayName: 'Deploy Release'
+  steps:
+  - template: 'DevOps\Templates\prepare-variables-template.yml'
+    parameters:
+      sourceBranch: $(Build.SourceBranch)
+      baseDeputyDirectory: $(DeputyDirectory)
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download Deputy Release'
+    inputs:
+      source: 'specific'
+      project: '$(ProjectID)' # Optional if the pipeline is in the same project
+      pipeline: '$(PipelineId)' # PipelineID, can be found in the url when viewing the pipeline on the web interface https://dev.azure.com/{YourOrganizationName}/{YourProjectName}/_build?definitionId={PipelineID}
+      buildVersionToDownload: 'latest'
+      branchName: '$(Build.SourceBranch)' # Optional: specify if you want the latest from a specific branch
+      artifactName: '$(SanitizedBranchName)'
+      targetPath: '$(DeputyReleaseDirectory)'
+
+  - task: PythonScript@0
+    displayName: 'API Request to deploy release'
+    inputs:
+      scriptSource: 'filePath'
+      scriptPath: 'DevOps\Scripts\Python\deploy-deputy-release.py'
+      arguments: >
+        "$(DeputyUrl)"
+        "$(DeputyReleaseDirectory)"
+        $(SanitizedBranchName)
+        ${{ parameters.targetEnvironmentUrl }}
